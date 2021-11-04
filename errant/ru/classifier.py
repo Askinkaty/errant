@@ -210,10 +210,14 @@ def get_two_sided_type(o_toks, c_toks):
         # 3. MORPHOLOGY
         # Only ADJ, ADV, NOUN and VERB can have inflectional changes.
 
+        print(o_toks[0].lemma, o_toks)
+        print(c_toks[0].lemma, c_toks)
+
         if o_toks[0].lemma == c_toks[0].lemma and \
                 o_pos[0] in open_pos2 and \
                 c_pos[0] in open_pos2:
             # Same POS on both sides
+            print('POS', o_pos)
             if o_pos == c_pos:
                 tag_d = {'Number': 'NUM', 'Gender': 'GEN', 'Case': 'CASE'}
                 # Adjective form; e.g. comparatives
@@ -225,18 +229,37 @@ def get_two_sided_type(o_toks, c_toks):
                         return "ADJ:FULL/SHORT"
                     # Adj number
                     common_tag = []
+                    result_tags = []
+                    print(tag_d)
                     for k, v in tag_d.items():
                         if k in o_morph and k in c_morph:
                             for ko, vo in o_morph.items():
                                 if ko in c_morph and ko != k and vo == c_morph[ko]:
                                     common_tag.append(True)
                         if all(common_tag) and o_morph[k] != c_morph[k]:
-                            return "ADJ:" + v
-                    return 'ADJ:INFL'
+                            result_tags.append(v)
+                    if len(result_tags):
+                        return "ADJ:" + ':'.join(result_tags)
+                    else:
+                        return 'ADJ:INFL'
                 # TODO: Add Noun and Pron to Adj, check tags
                 # Noun number
-                if o_pos[0] == "NOUN":
-                    return "NOUN:NUM"
+                print(o_pos[0])
+                if o_pos[0] in ["NOUN", "PRON"]:
+                    common_tag = []
+                    tag_n = {'Number': 'NUM', 'Case': 'CASE'}
+                    noun_result_tags = []
+                    for k, v in tag_n.items():
+                        if k in o_morph and k in c_morph:
+                            for ko, vo in o_morph.items():
+                                if ko in c_morph and ko != k and vo == c_morph[ko]:
+                                    common_tag.append(True)
+                        if all(common_tag) and o_morph[k] != c_morph[k]:
+                            noun_result_tags.append(v)
+                    if len(noun_result_tags):
+                        return o_pos[0] + ':' + ':'.join(noun_result_tags)
+                    else:
+                        return o_pos[0] + ':INFL'
                 # Verbs - various types
                 if o_pos[0] == "VERB":
                     # NOTE: These rules are carefully ordered.
