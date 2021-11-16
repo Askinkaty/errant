@@ -217,7 +217,6 @@ def get_two_sided_type(o_toks, c_toks):
                 o_pos[0] in open_pos2 and \
                 c_pos[0] in open_pos2:
             # Same POS on both sides
-            print('POS', o_pos)
             if o_pos == c_pos:
                 tag_d = {'Number': 'NUM', 'Gender': 'GEN', 'Case': 'CASE'}
                 # Adjective form; e.g. comparatives
@@ -230,21 +229,20 @@ def get_two_sided_type(o_toks, c_toks):
                     # Adj number
                     common_tag = []
                     result_tags = []
-                    print(tag_d)
                     for k, v in tag_d.items():
                         if k in o_morph and k in c_morph:
                             for ko, vo in o_morph.items():
                                 if ko in c_morph and ko != k and vo == c_morph[ko]:
                                     common_tag.append(True)
-                        if all(common_tag) and o_morph[k] != c_morph[k]:
-                            result_tags.append(v)
+                            if all(common_tag) and o_morph[k] != c_morph[k]:
+                                result_tags.append(v)
                     if len(result_tags):
                         return "ADJ:" + ':'.join(result_tags)
                     else:
                         return 'ADJ:INFL'
-                # TODO: Add Noun and Pron to Adj, check tags
                 # Noun number
                 print(o_pos[0])
+                print(c_pos[0])
                 if o_pos[0] in ["NOUN", "PRON"]:
                     common_tag = []
                     tag_n = {'Number': 'NUM', 'Case': 'CASE'}
@@ -254,40 +252,59 @@ def get_two_sided_type(o_toks, c_toks):
                             for ko, vo in o_morph.items():
                                 if ko in c_morph and ko != k and vo == c_morph[ko]:
                                     common_tag.append(True)
-                        if all(common_tag) and o_morph[k] != c_morph[k]:
-                            noun_result_tags.append(v)
+                            if all(common_tag) and o_morph[k] != c_morph[k]:
+                                noun_result_tags.append(v)
                     if len(noun_result_tags):
                         return o_pos[0] + ':' + ':'.join(noun_result_tags)
                     else:
                         return o_pos[0] + ':INFL'
                 # Verbs - various types
+                # Maybe make hierarchy -- verb form, then tense, then aspect, then everything else
+                # for tense and voice need a parser info maybe
                 if o_pos[0] == "VERB":
+                    print('verb')
+                    common_verb_tag = []
+                    tag_v = {'Number': 'NUM', 'Tense': 'TENSE', 'Gender': 'GEN', 'Voice': 'VOICE',
+                             'Mood': 'MOOD', 'Aspect': 'ASPECT', 'VerbForm': 'FORM'}
+                    print(o_toks[0].tag_, o_toks[0])
+                    print(c_toks[0].tag_, c_toks[0])
+                    print(o_morph, o_dep)
+                    print(c_morph, c_dep)
+                    verb_result_tags = []
+                    for k, v in tag_v.items():
+                        if k in o_morph and k in c_morph:
+                            for ko, vo in o_morph.items():
+                                if ko in c_morph and ko != k and vo == c_morph[ko]:
+                                    common_verb_tag.append(True)
+                            if all(common_verb_tag) and o_morph[k] != c_morph[k]:
+                                verb_result_tags.append(v)
+                    if len(verb_result_tags):
+                        return o_pos[0] + ':' + ':'.join(verb_result_tags)
+                    else:
+                        return o_pos[0] + ':MORPH'
                     # NOTE: These rules are carefully ordered.
                     # Use the dep parse to find some form errors.
                     # Main verbs preceded by aux cannot be tense or SVA.
-                    if preceded_by_aux(o_toks, c_toks):
-                        return "VERB:FORM"
+                    # if preceded_by_aux(o_toks, c_toks):
+                    #     return "VERB:FORM"
                     # Use fine PTB tags to find various errors.
                     # FORM errors normally involve VBG or VBN.
-                    if o_toks[0].tag_ in {"VBG", "VBN"} or \
-                            c_toks[0].tag_ in {"VBG", "VBN"}:
-                        return "VERB:FORM"
-                    # Of what's left, TENSE errors normally involved VBD.
-                    if o_toks[0].tag_ == "VBD" or c_toks[0].tag_ == "VBD":
-                        return "VERB:TENSE"
-                    # Of what's left, SVA errors normally involve VBZ.
-                    if o_toks[0].tag_ == "VBZ" or c_toks[0].tag_ == "VBZ":
-                        return "VERB:SVA"
+                    # if o_toks[0].tag_ in {"VBG", "VBN"} or \
+                    #         c_toks[0].tag_ in {"VBG", "VBN"}:
+                    #     return "VERB:FORM"
+                    # # Of what's left, TENSE errors normally involved VBD.
+                    # if o_toks[0].tag_ == "VBD" or c_toks[0].tag_ == "VBD":
+                    #     return "VERB:TENSE"
+                    # # Of what's left, SVA errors normally involve VBZ.
+                    # if o_toks[0].tag_ == "VBZ" or c_toks[0].tag_ == "VBZ":
+                    #     return "VERB:SVA"
                     # Any remaining aux verbs are called TENSE.
-                    if o_dep[0].startswith("aux") and \
-                            c_dep[0].startswith("aux"):
-                        return "VERB:TENSE"
+                    # if o_dep[0].startswith("aux") and \
+                    #         c_dep[0].startswith("aux"):
+                    #     return "VERB:TENSE"
             # Use dep labels to find some more ADJ:FORM
             if set(o_dep+c_dep).issubset({"acomp", "amod"}):
                 return "ADJ:FORM"
-            # Adj to plural noun is usually noun number; e.g. musical -> musicals.
-            if o_pos[0] == "ADJ" and c_toks[0].tag_ == "NNS":
-                return "NOUN:NUM"
             # For remaining verb errors (rare), rely on c_pos
             if c_toks[0].tag_ in {"VBG", "VBN"}:
                 return "VERB:FORM"
