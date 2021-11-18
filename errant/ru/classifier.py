@@ -11,8 +11,6 @@ def load_word_list(path):
         return set([word.strip() for word in word_list])
 
 
-
-
 # First install errant editable
 # pip install spacy==3.1.0
 #  python3 -m spacy download ru_core_news_lg
@@ -34,10 +32,8 @@ open_pos1 = {POS.ADJ, POS.ADV, POS.NOUN, POS.VERB}
 open_pos2 = {"ADJ", "ADV", "NOUN", "VERB"}
 # Rare POS tags that make uninformative error categories
 rare_pos = {"INTJ", "NUM", "SYM", "X"}
-# Contractions
-conts = {"'d", "'ll", "'m", "n't", "'re", "'s", "'ve"}
-# Special auxiliaries in contractions.
-aux_conts = {"ca": "can", "sha": "shall", "wo": "will"}
+
+
 # Some dep labels that map to pos tags.
 dep_map = {
     "acomp": "ADJ",
@@ -127,9 +123,6 @@ def get_one_sided_type(toks):
         # Possessive noun suffixes; e.g. ' -> 's
         if toks[0].tag_ == "POS":
             return "NOUN:POSS"
-        # Contractions. Rule must come after possessive
-        if toks[0].lower_ in conts:
-            return "CONTR"
         # Infinitival "to" is treated as part of a verb form
         if toks[0].lower_ == "to" and toks[0].pos == POS.PART and \
                 toks[0].dep_ != "prep":
@@ -212,7 +205,12 @@ def get_two_sided_type(o_toks, c_toks):
 
         print(o_toks[0].lemma, o_toks)
         print(c_toks[0].lemma, c_toks)
-
+        print(o_pos[0])
+        print(c_pos[0])
+        print(o_toks[0].tag_, o_toks[0])
+        print(c_toks[0].tag_, c_toks[0])
+        print(o_morph, o_dep)
+        print(c_morph, c_dep)
         if o_toks[0].lemma == c_toks[0].lemma and \
                 o_pos[0] in open_pos2 and \
                 c_pos[0] in open_pos2:
@@ -241,8 +239,6 @@ def get_two_sided_type(o_toks, c_toks):
                     else:
                         return 'ADJ:INFL'
                 # Noun number
-                print(o_pos[0])
-                print(c_pos[0])
                 if o_pos[0] in ["NOUN", "PRON"]:
                     common_tag = []
                     tag_n = {'Number': 'NUM', 'Case': 'CASE'}
@@ -262,69 +258,34 @@ def get_two_sided_type(o_toks, c_toks):
                 # Maybe make hierarchy -- verb form, then tense, then aspect, then everything else
                 # for tense and voice need a parser info maybe
                 if o_pos[0] == "VERB":
-                    print('verb')
-                    common_verb_tag = []
-                    tag_v = {'Number': 'NUM', 'Tense': 'TENSE', 'Gender': 'GEN', 'Voice': 'VOICE',
-                             'Mood': 'MOOD', 'Aspect': 'ASPECT', 'VerbForm': 'FORM'}
-                    print(o_toks[0].tag_, o_toks[0])
-                    print(c_toks[0].tag_, c_toks[0])
-                    print(o_morph, o_dep)
-                    print(c_morph, c_dep)
-                    verb_result_tags = []
-                    for k, v in tag_v.items():
-                        if k in o_morph and k in c_morph:
-                            for ko, vo in o_morph.items():
-                                if ko in c_morph and ko != k and vo == c_morph[ko]:
-                                    common_verb_tag.append(True)
-                            if all(common_verb_tag) and o_morph[k] != c_morph[k]:
-                                verb_result_tags.append(v)
-                    if len(verb_result_tags):
-                        return o_pos[0] + ':' + ':'.join(verb_result_tags)
+                    if 'VerbForm' in o_morph and 'VerbForm' in c_morph and o_morph['VerbForm'] != c_morph['VerbForm']:
+                            return o_pos[0] + ':FORM'
+                    elif 'Tense' in o_morph and 'Tense' in c_morph and o_morph['Tense'] != c_morph['Tense']:
+                            return o_pos[0] + ':TENSE'
+                    elif 'Aspect' in o_morph and 'Aspect' in c_morph and o_morph['Aspect'] != c_morph['Aspect']:
+                            return o_pos[0] + ':ASPECT'
                     else:
-                        return o_pos[0] + ':MORPH'
-                    # NOTE: These rules are carefully ordered.
-                    # Use the dep parse to find some form errors.
-                    # Main verbs preceded by aux cannot be tense or SVA.
-                    # if preceded_by_aux(o_toks, c_toks):
-                    #     return "VERB:FORM"
-                    # Use fine PTB tags to find various errors.
-                    # FORM errors normally involve VBG or VBN.
-                    # if o_toks[0].tag_ in {"VBG", "VBN"} or \
-                    #         c_toks[0].tag_ in {"VBG", "VBN"}:
-                    #     return "VERB:FORM"
-                    # # Of what's left, TENSE errors normally involved VBD.
-                    # if o_toks[0].tag_ == "VBD" or c_toks[0].tag_ == "VBD":
-                    #     return "VERB:TENSE"
-                    # # Of what's left, SVA errors normally involve VBZ.
-                    # if o_toks[0].tag_ == "VBZ" or c_toks[0].tag_ == "VBZ":
-                    #     return "VERB:SVA"
-                    # Any remaining aux verbs are called TENSE.
-                    # if o_dep[0].startswith("aux") and \
-                    #         c_dep[0].startswith("aux"):
-                    #     return "VERB:TENSE"
-            # Use dep labels to find some more ADJ:FORM
-            if set(o_dep+c_dep).issubset({"acomp", "amod"}):
-                return "ADJ:FORM"
-            # For remaining verb errors (rare), rely on c_pos
-            if c_toks[0].tag_ in {"VBG", "VBN"}:
-                return "VERB:FORM"
-            if c_toks[0].tag_ == "VBD":
-                return "VERB:TENSE"
-            if c_toks[0].tag_ == "VBZ":
-                return "VERB:SVA"
-            # Tricky cases that all have the same lemma.
-            else:
-                return "MORPH"
+                        common_verb_tag = []
+                        tag_v = {'Number': 'NUM', 'Gender': 'GEN', 'Voice': 'VOICE',
+                                 'Mood': 'MOOD'}
+                        verb_result_tags = []
+                        for k, v in tag_v.items():
+                            if k in o_morph and k in c_morph:
+                                for ko, vo in o_morph.items():
+                                    if ko in c_morph and ko != k and vo == c_morph[ko]:
+                                        common_verb_tag.append(True)
+                                if all(common_verb_tag) and o_morph[k] != c_morph[k]:
+                                    verb_result_tags.append(v)
+                        if len(verb_result_tags):
+                            return o_pos[0] + ':' + ':'.join(verb_result_tags)
+                        else:
+                            return o_pos[0] + ':MORPH'
+
         # Derivational morphology.
         if stemmer.stem(o_toks[0].text) == stemmer.stem(c_toks[0].text) and \
                 o_pos[0] in open_pos2 and \
                 c_pos[0] in open_pos2:
             return "MORPH"
-
-        # 4. GENERAL
-        # Auxiliaries with different lemmas
-        if o_dep[0].startswith("aux") and c_dep[0].startswith("aux"):
-            return "VERB:TENSE"
         # POS-based tags. Some of these are context sensitive mispellings.
         if o_pos == c_pos and o_pos[0] not in rare_pos:
             return o_pos[0]
@@ -335,21 +296,14 @@ def get_two_sided_type(o_toks, c_toks):
         if set(o_pos+c_pos) == {"PART", "PREP"} or \
                 set(o_dep+c_dep) == {"prt", "prep"}:
             return "PART"
-        # Can use dep labels to resolve DET + PRON combinations.
-        if set(o_pos+c_pos) == {"DET", "PRON"}:
-            # DET cannot be a subject or object.
-            if c_dep[0] in {"nsubj", "nsubjpass", "dobj", "pobj"}:
-                return "PRON"
-            # "poss" indicates possessive determiner
-            if c_dep[0] == "poss":
-                return "DET"
-        # Tricky cases.
         else:
             return "OTHER"
 
     # Multi-token replacements (uncommon)
     # All auxiliaries
-    if set(o_dep+c_dep).issubset({"aux", "auxpass"}):
+    print(o_dep)
+    print(c_dep)
+    if set(o_dep+c_dep) == {"aux", "ROOT"}:
         return "VERB:TENSE"
     # All same POS
     if len(set(o_pos+c_pos)) == 1:
@@ -364,26 +318,6 @@ def get_two_sided_type(o_toks, c_toks):
     if len(set(o_dep+c_dep)) == 1 and \
             o_dep[0] in dep_map.keys():
         return dep_map[o_dep[0]]
-    # Infinitives, gerunds, phrasal verbs.
-    if set(o_pos+c_pos) == {"PART", "VERB"}:
-        # Final verbs with the same lemma are form; e.g. to eat -> eating
-        if o_toks[-1].lemma == c_toks[-1].lemma:
-            return "VERB:FORM"
-        # Remaining edits are often verb; e.g. to eat -> consuming, look at -> see
-        else:
-            return "VERB"
-    # Possessive nouns; e.g. friends -> friend 's
-    if (o_pos == ["NOUN", "PART"] or c_pos == ["NOUN", "PART"]) and \
-            o_toks[0].lemma == c_toks[0].lemma:
-        return "NOUN:POSS"
-    # Adjective forms with "most" and "more"; e.g. more free -> freer
-    if (o_toks[0].lower_ in {"most", "more"} or \
-            c_toks[0].lower_ in {"most", "more"}) and \
-            o_toks[-1].lemma == c_toks[-1].lemma and \
-            len(o_toks) <= 2 and len(c_toks) <= 2:
-        return "ADJ:FORM"
-
-    # Tricky cases.
     else:
         return "OTHER"
 
