@@ -2,13 +2,16 @@ import argparse
 from contextlib import ExitStack
 import errant
 
+
 def main():
     # Parse command line args
     args = parse_args()
     print("Loading resources...")
     # Load Errant
-    annotator = errant.load("en")
-
+    if args.lang == "English":
+        annotator = errant.load("en")
+    elif args.lang == "Russian":
+        annotator = errant.load("ru")
     print("Processing parallel files...")
     # Process an arbitrary number of files line by line simultaneously. Python 3.3+
     # See https://tinyurl.com/y4cj4gth . Also opens the output m2 file.
@@ -20,7 +23,8 @@ def main():
             orig = line[0].strip()
             cors = line[1:]
             # Skip the line if orig is empty
-            if not orig: continue
+            if not orig:
+                continue
             # Parse orig with spacy
             orig = annotator.parse(orig, args.tok)
             # Write orig to the output m2 file
@@ -44,12 +48,18 @@ def main():
             # Write a newline when we have processed all corrections for each line
             out_m2.write("\n")
 
+
 # Parse command line args
 def parse_args():
     parser=argparse.ArgumentParser(
         description="Align parallel text files and extract and classify the edits.\n",
         formatter_class=argparse.RawTextHelpFormatter,
         usage="%(prog)s [-h] [options] -orig ORIG -cor COR [COR ...] -out OUT")
+    parser.add_argument(
+        "-lang",
+        help="Language of the test file.",
+        required=True
+    )
     parser.add_argument(
         "-orig",
         help="The path to the original text file.",
