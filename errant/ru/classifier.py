@@ -4,11 +4,20 @@ from errant.en.lancaster import LancasterStemmer
 import spacy
 from nltk.stem.snowball import SnowballStemmer
 import spacy.symbols as POS
+import codecs
+import json
+
 
 # Load Hunspell word list
 def load_word_list(path):
     with open(path) as word_list:
         return set([word.strip() for word in word_list])
+
+
+def load_freq_dict(path):
+    with codecs.open(path, 'r', encoding='utf-8') as fr:
+        freq_dict = json.load(fr)
+        return freq_dict
 
 
 # First install errant editable
@@ -24,7 +33,8 @@ nlp = None
 # stemmer = LancasterStemmer()
 stemmer = SnowballStemmer("russian")
 # GB English word list (inc -ise and -ize)
-spell = load_word_list(base_dir/"resources"/"Russian.dic")
+spell = load_word_list(base_dir / "resources" / "Russian.dic")
+freq_dict = load_freq_dict(base_dir / "resources" / "freq_dict.json")
 # Part of speech map file
 # Open class coarse Spacy POS tags
 open_pos1 = {POS.ADJ, POS.ADV, POS.NOUN, POS.VERB}
@@ -32,7 +42,6 @@ open_pos1 = {POS.ADJ, POS.ADV, POS.NOUN, POS.VERB}
 open_pos2 = {"ADJ", "ADV", "NOUN", "VERB"}
 # Rare POS tags that make uninformative error categories
 rare_pos = {"INTJ", "NUM", "SYM", "X"}
-
 
 # Some dep labels that map to pos tags.
 dep_map = {
@@ -43,6 +52,7 @@ dep_map = {
     "prep": "PREP",
     "prt": "PART",
     "punct": "PUNCT"}
+
 
 # Input: An Edit object
 # Output: The same Edit object with an updated error type
@@ -56,12 +66,12 @@ def classify(edit):
     elif not edit.o_toks and edit.c_toks:
         op = "M:"
         cat = get_one_sided_type(edit.c_toks)
-        edit.type = op+cat
+        edit.type = op + cat
     # Unnecessary
     elif edit.o_toks and not edit.c_toks:
         op = "U:"
         cat = get_one_sided_type(edit.o_toks)
-        edit.type = op+cat
+        edit.type = op + cat
     # Replacement and special cases
     else:
         # Same to same is a detected but not corrected edit
@@ -91,8 +101,9 @@ def classify(edit):
         else:
             op = "R:"
             cat = get_two_sided_type(edit.o_toks, edit.c_toks)
-            edit.type = op+cat
+            edit.type = op + cat
     return edit
+
 
 # Input: Spacy tokens
 # Output: A list of pos and dep tag strings
@@ -111,6 +122,7 @@ def get_edit_info(toks):
                 k, v = m.strip().split('=')
                 morph[k] = v
     return pos, dep, morph
+
 
 # Input: Spacy tokens
 # Output: An error type string based on input tokens from orig or cor
@@ -167,38 +179,36 @@ def get_two_sided_type(o_toks, c_toks):
         # 1. SPECIAL CASES
         # ?
 
-        # # 2. SPELLING AND INFLECTION
-        # # Only check alphabetical strings on the original side
-        # # Spelling errors take precedence over POS errors; this rule is ordered
-        # if o_toks[0].text.isalpha():
-        #     # Check a GB English dict for both orig and lower case.
-        #     # E.g. "cat" is in the dict, but "Cat" is not.
-        #     if o_toks[0].text not in spell and \
-        #             o_toks[0].lower_ not in spell:
-        #         # Check if both sides have a common lemma
-        #         if o_toks[0].lemma == c_toks[0].lemma:
-        #             # Inflection; often count vs mass nouns or e.g. got vs getted
-        #             if o_pos == c_pos and o_pos[0] in {"NOUN", "VERB"}:
-        #                 return o_pos[0]+":INFL"
-        #             # Unknown morphology; i.e. we cannot be more specific.
-        #             else:
-        #                 return "MORPH"
-        #         # Use string similarity to detect true spelling errors.
-        #         else:
-        #             char_ratio = Levenshtein.ratio(o_toks[0].text, c_toks[0].text)
-        #             # Ratio > 0.5 means both side share at least half the same chars.
-        #             # WARNING: THIS IS AN APPROXIMATION.
-        #             if char_ratio > 0.5:
-        #                 return "SPELL"
-        #             # If ratio is <= 0.5, the error is more complex e.g. tolk -> say
-        #             else:
-        #                 # If POS is the same, this takes precedence over spelling.
-        #                 if o_pos == c_pos and \
-        #                         o_pos[0] not in rare_pos:
-        #                     return o_pos[0]
-        #                 # Tricky cases.
-        #                 else:
-        #                     return "OTHER"
+        # 2. SPELLING AND INFLECTION
+
+        # if lemmas are not in spell -- not tokens -- TODO: change here
+        # Only check alphabetical strings on the original side
+        # Spelling errors take precedence over POS errors; this rule is ordered
+        if o_toks[0].text.isalpha():
+            if o_toks.text not in spell and \
+                    o_toks.text.lower() not in spell and o_toks.text.lower() not in freq_dict:
+                # Check if both sides have a common lemma
+                if o_toks[0].lemma == c_toks[0].lemma:
+                    if o_pos == c_pos and o_pos[0] in {"NOUN", "VERB"}:
+                        return o_pos[0] + ":INFL"
+                    else:
+                        return "MORPH"
+                    # Use string similarity to detect true spelling errors.
+                else:
+                    char_ratio = Levenshtein.ratio(o_toks[0].text, c_toks[0].text)
+                    # Ratio > 0.5 means both side share at least half the same chars.
+                    # WARNING: THIS IS AN APPROXIMATION.
+                    if char_ratio > 0.5:
+                        return "SPELL"
+                    # If ratio is <= 0.5, the error is more complex e.g. tolk -> say
+                    else:
+                        # If POS is the same, this takes precedence over spelling.
+                        if o_pos == c_pos and \
+                                o_pos[0] not in rare_pos:
+                            return o_pos[0]
+                        # Tricky cases.
+                        else:
+                            return "OTHER"
 
         # 3. MORPHOLOGY
         # Only ADJ, ADV, NOUN and VERB can have inflectional changes.
@@ -259,11 +269,11 @@ def get_two_sided_type(o_toks, c_toks):
                 # for tense and voice need a parser info maybe
                 if o_pos[0] == "VERB":
                     if 'VerbForm' in o_morph and 'VerbForm' in c_morph and o_morph['VerbForm'] != c_morph['VerbForm']:
-                            return o_pos[0] + ':FORM'
+                        return o_pos[0] + ':FORM'
                     elif 'Tense' in o_morph and 'Tense' in c_morph and o_morph['Tense'] != c_morph['Tense']:
-                            return o_pos[0] + ':TENSE'
+                        return o_pos[0] + ':TENSE'
                     elif 'Aspect' in o_morph and 'Aspect' in c_morph and o_morph['Aspect'] != c_morph['Aspect']:
-                            return o_pos[0] + ':ASPECT'
+                        return o_pos[0] + ':ASPECT'
                     else:
                         common_verb_tag = []
                         tag_v = {'Number': 'NUM', 'Gender': 'GEN', 'Voice': 'VOICE',
@@ -280,7 +290,12 @@ def get_two_sided_type(o_toks, c_toks):
                             return o_pos[0] + ':' + ':'.join(verb_result_tags)
                         else:
                             return o_pos[0] + ':MORPH'
-
+        if o_toks[0].lemma != c_toks[0].lemma and \
+                o_pos[0] in open_pos2 and \
+                c_pos[0] in open_pos2 and o_pos[0] == c_pos[0] == 'VERB':
+            if len(o_morph) == len(c_morph) and \
+                    all([o_morph[k] == c_morph[k] for k, v in o_morph.items() if (k != 'Aspect' and k in c_morph)]):
+                return o_pos[0] + ':ASPECT'
         # Derivational morphology.
         if stemmer.stem(o_toks[0].text) == stemmer.stem(c_toks[0].text) and \
                 o_pos[0] in open_pos2 and \
@@ -293,8 +308,8 @@ def get_two_sided_type(o_toks, c_toks):
         if o_dep == c_dep and o_dep[0] in dep_map.keys():
             return dep_map[o_dep[0]]
         # Phrasal verb particles.
-        if set(o_pos+c_pos) == {"PART", "PREP"} or \
-                set(o_dep+c_dep) == {"prt", "prep"}:
+        if set(o_pos + c_pos) == {"PART", "PREP"} or \
+                set(o_dep + c_dep) == {"prt", "prep"}:
             return "PART"
         else:
             return "OTHER"
@@ -303,33 +318,27 @@ def get_two_sided_type(o_toks, c_toks):
     # All auxiliaries
     print(o_dep)
     print(c_dep)
-    if set(o_dep+c_dep) == {"aux", "ROOT"}:
+    if set(o_dep + c_dep) == {"aux", "ROOT"}:
         return "VERB:TENSE"
-    # All same POS
-    if len(set(o_pos+c_pos)) == 1:
-        # Final verbs with the same lemma are tense; e.g. eat -> has eaten
-        if o_pos[0] == "VERB" and \
-                o_toks[-1].lemma == c_toks[-1].lemma:
-            return "VERB:TENSE"
-        # POS-based tags.
-        elif o_pos[0] not in rare_pos:
-            return o_pos[0]
     # All same special dep labels.
-    if len(set(o_dep+c_dep)) == 1 and \
+    if len(set(o_dep + c_dep)) == 1 and \
             o_dep[0] in dep_map.keys():
         return dep_map[o_dep[0]]
     else:
         return "OTHER"
 
+
 # Input 1: Spacy orig tokens
 # Input 2: Spacy cor tokens
 # Output: Boolean; the difference between orig and cor is only whitespace or case
+
 def only_orth_change(o_toks, c_toks):
     o_join = "".join([o.lower_ for o in o_toks])
     c_join = "".join([c.lower_ for c in c_toks])
     if o_join == c_join:
         return True
     return False
+
 
 # Input 1: Spacy orig tokens
 # Input 2: Spacy cor tokens
@@ -341,6 +350,7 @@ def exact_reordering(o_toks, c_toks):
     if o_set == c_set:
         return True
     return False
+
 
 # Input 1: An original text spacy token.
 # Input 2: A corrected text spacy token.
