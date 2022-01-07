@@ -187,6 +187,7 @@ def get_two_sided_type(o_toks, c_toks):
         if o_toks[0].text.isalpha():
             if o_toks.text not in spell and \
                     o_toks.text.lower() not in spell and o_toks.text.lower() not in freq_dict:
+                print('Here spell')
                 # Check if both sides have a common lemma
                 if o_toks[0].lemma == c_toks[0].lemma:
                     if o_pos == c_pos and o_pos[0] in {"NOUN", "VERB"}:
@@ -195,7 +196,9 @@ def get_two_sided_type(o_toks, c_toks):
                         return "MORPH"
                     # Use string similarity to detect true spelling errors.
                 else:
+
                     char_ratio = Levenshtein.ratio(o_toks[0].text, c_toks[0].text)
+                    print('ratio', char_ratio)
                     # Ratio > 0.5 means both side share at least half the same chars.
                     # WARNING: THIS IS AN APPROXIMATION.
                     if char_ratio > 0.5:
@@ -205,10 +208,10 @@ def get_two_sided_type(o_toks, c_toks):
                         # If POS is the same, this takes precedence over spelling.
                         if o_pos == c_pos and \
                                 o_pos[0] not in rare_pos:
-                            return o_pos[0]
+                            return "SPELL:" + o_pos[0]
                         # Tricky cases.
                         else:
-                            return "OTHER"
+                            return "SPELL:OTHER"
 
         # 3. MORPHOLOGY
         # Only ADJ, ADV, NOUN and VERB can have inflectional changes.
