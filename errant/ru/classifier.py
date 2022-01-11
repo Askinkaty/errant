@@ -77,21 +77,15 @@ def classify(edit):
         # Same to same is a detected but not corrected edit
         if edit.o_str == edit.c_str:
             edit.type = "UNK"
-        # Special: Ignore case change at the end of multi token edits
-        # E.g. [Doctor -> The doctor], [, since -> . Since]
         # Classify the edit as if the last token wasn't there
         elif edit.o_toks[-1].lower == edit.c_toks[-1].lower and \
                 (len(edit.o_toks) > 1 or len(edit.c_toks) > 1):
             # Store a copy of the full orig and cor toks
             all_o_toks = edit.o_toks[:]
             all_c_toks = edit.c_toks[:]
-            print('all o: ', all_o_toks)
-            print('all c: ', all_c_toks)
             # Truncate the instance toks for classification
             edit.o_toks = edit.o_toks[:-1]
             edit.c_toks = edit.c_toks[:-1]
-            print(edit.o_toks)
-            print(edit.c_toks)
             # Classify the truncated edit
             edit = classify(edit)
             # Restore the full orig and cor toks
@@ -130,15 +124,6 @@ def get_edit_info(toks):
 
 
 def get_one_sided_type(toks):
-    # Special cases
-    if len(toks) == 1:
-        # Possessive noun suffixes; e.g. ' -> 's
-        if toks[0].tag_ == "POS":
-            return "NOUN:POSS"
-        # Infinitival "to" is treated as part of a verb form
-        if toks[0].lower_ == "to" and toks[0].pos == POS.PART and \
-                toks[0].dep_ != "prep":
-            return "VERB:FORM"
     # Extract pos tags and parse info from the toks
     pos_list, dep_list, _ = get_edit_info(toks)
     # Auxiliary verbs
@@ -162,7 +147,6 @@ def get_one_sided_type(toks):
 # Input 2: Spacy cor tokens
 # Output: An error type string based on orig AND cor
 def get_two_sided_type(o_toks, c_toks):
-    print('HERE!')
     # Extract pos tags and parse info from the toks as lists
     o_pos, o_dep, o_morph = get_edit_info(o_toks)
     c_pos, c_dep, c_morph = get_edit_info(c_toks)
@@ -176,18 +160,13 @@ def get_two_sided_type(o_toks, c_toks):
 
     # 1:1 replacements (very common)
     if len(o_toks) == len(c_toks) == 1:
-        # 1. SPECIAL CASES
-        # ?
-
         # 2. SPELLING AND INFLECTION
-
         # if lemmas are not in spell -- not tokens -- TODO: change here
         # Only check alphabetical strings on the original side
         # Spelling errors take precedence over POS errors; this rule is ordered
         if o_toks[0].text.isalpha():
             if o_toks.text not in spell and \
                     o_toks.text.lower() not in spell and o_toks.text.lower() not in freq_dict:
-                print('Here spell')
                 # Check if both sides have a common lemma
                 if o_toks[0].lemma == c_toks[0].lemma:
                     if o_pos == c_pos and o_pos[0] in {"NOUN", "VERB"}:
@@ -196,9 +175,7 @@ def get_two_sided_type(o_toks, c_toks):
                         return "MORPH"
                     # Use string similarity to detect true spelling errors.
                 else:
-
                     char_ratio = Levenshtein.ratio(o_toks[0].text, c_toks[0].text)
-                    print('ratio', char_ratio)
                     # Ratio > 0.5 means both side share at least half the same chars.
                     # WARNING: THIS IS AN APPROXIMATION.
                     if char_ratio > 0.5:
@@ -235,7 +212,8 @@ def get_two_sided_type(o_toks, c_toks):
                     if 'Degree' in o_morph and 'Degree' in c_morph:
                         if o_morph['Degree'] != c_morph['Degree']:
                             return "ADJ:COMP_FORM"
-                    if 'StyleVariant' in o_morph or 'StyleVariant' in c_morph:
+                    if 'StyleVariant' in o_morph or 'StyleVariant' in c_morph and\
+                            not ('StyleVariant' in o_morph and 'StyleVariant' in c_morph):
                         return "ADJ:FULL/SHORT"
                     # Adj number
                     common_tag = []
@@ -317,10 +295,6 @@ def get_two_sided_type(o_toks, c_toks):
         else:
             return "OTHER"
 
-    # Multi-token replacements (uncommon)
-    # All auxiliaries
-    print(o_dep)
-    print(c_dep)
     if set(o_dep + c_dep) == {"aux", "ROOT"}:
         return "VERB:TENSE"
     # All same special dep labels.
