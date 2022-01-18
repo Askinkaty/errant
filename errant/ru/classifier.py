@@ -39,9 +39,9 @@ freq_dict = load_freq_dict(base_dir / "resources" / "freq_dict.json")
 # Open class coarse Spacy POS tags
 open_pos1 = {POS.ADJ, POS.ADV, POS.NOUN, POS.VERB}
 # Open class coarse Spacy POS tags (strings)
-open_pos2 = {"ADJ", "ADV", "NOUN", "VERB"}
+open_pos2 = {"ADJ", "ADV", "NOUN", "VERB", "NUM"}
 # Rare POS tags that make uninformative error categories
-rare_pos = {"INTJ", "NUM", "SYM", "X"}
+rare_pos = {"INTJ", "SYM", "X"}
 
 # Some dep labels that map to pos tags.
 dep_map = {
@@ -169,9 +169,9 @@ def get_two_sided_type(o_toks, c_toks):
                     o_toks.text.lower() not in spell and o_toks.text.lower() not in freq_dict:
                 # Check if both sides have a common lemma
                 if o_toks[0].lemma == c_toks[0].lemma:
-                    if o_pos == c_pos and o_pos[0] in {"NOUN", "VERB"}:
+                    if o_pos == c_pos and o_pos[0] in {"NOUN", "VERB", "ADJ", 'PRON', 'NUM'}:
                         return o_pos[0] + ":INFL"
-                    else:
+                    elif o_pos != c_pos:
                         return "MORPH"
                     # Use string similarity to detect true spelling errors.
                 else:
@@ -230,7 +230,7 @@ def get_two_sided_type(o_toks, c_toks):
                     else:
                         return 'ADJ:INFL'
                 # Noun number
-                if o_pos[0] in ["NOUN", "PRON"]:
+                if o_pos[0] in ["NOUN", "PRON", 'NUM']:
                     common_tag = []
                     tag_n = {'Number': 'NUM', 'Case': 'CASE'}
                     noun_result_tags = []
@@ -270,7 +270,13 @@ def get_two_sided_type(o_toks, c_toks):
                         if len(verb_result_tags):
                             return o_pos[0] + ':' + ':'.join(verb_result_tags)
                         else:
-                            return o_pos[0] + ':MORPH'
+                            return o_pos[0] + ':INFL'
+                if o_pos[0] == 'VERB' and 'VerbForm' in o_morph and o_morph['VerbForm'] == 'Part':
+                    if c_pos == 'ADJ':
+                        return o_pos[0] + ':INFL'
+                elif c_pos[0] == 'VERB' and 'VerbForm' in c_morph and c_morph['VerbForm'] == 'Part':
+                    if o_pos == 'ADJ':
+                        return c_pos[0] + ':INFL'
         if o_toks[0].lemma != c_toks[0].lemma and \
                 o_pos[0] in open_pos2 and \
                 c_pos[0] in open_pos2 and o_pos[0] == c_pos[0] == 'VERB':
@@ -280,7 +286,7 @@ def get_two_sided_type(o_toks, c_toks):
         # Derivational morphology.
         if stemmer.stem(o_toks[0].text) == stemmer.stem(c_toks[0].text) and \
                 o_pos[0] in open_pos2 and \
-                c_pos[0] in open_pos2:
+                c_pos[0] in open_pos2 and o_pos[0] != c_pos[0]:
             return "MORPH"
         # POS-based tags. Some of these are context sensitive mispellings.
         if o_pos == c_pos and o_pos[0] not in rare_pos:
@@ -288,7 +294,6 @@ def get_two_sided_type(o_toks, c_toks):
         # Some dep labels map to POS-based tags.
         if o_dep == c_dep and o_dep[0] in dep_map.keys():
             return dep_map[o_dep[0]]
-        # Phrasal verb particles.
         if set(o_pos + c_pos) == {"PART", "PREP"} or \
                 set(o_dep + c_dep) == {"prt", "prep"}:
             return "PART"
