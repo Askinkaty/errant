@@ -15,7 +15,7 @@ To make it work, update your installations. Errant should be installed from the 
 #
 ```
 
-To start using RuERRANT load Russian, all other steps are the same.
+To start using RuERRANT, load Russian. All other steps are the same.
 
 ```
 import errant
