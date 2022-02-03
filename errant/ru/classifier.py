@@ -192,15 +192,15 @@ def get_two_sided_type(o_toks, c_toks):
 
         # 3. MORPHOLOGY
         # Only ADJ, ADV, NOUN and VERB can have inflectional changes.
-
-        print(o_toks[0].lemma, o_toks)
-        print(c_toks[0].lemma, c_toks)
-        print(o_pos[0])
-        print(c_pos[0])
-        print(o_toks[0].tag_, o_toks[0])
-        print(c_toks[0].tag_, c_toks[0])
-        print(o_morph, o_dep)
-        print(c_morph, c_dep)
+        #
+        # print(o_toks[0].lemma, o_toks)
+        # print(c_toks[0].lemma, c_toks)
+        # print(o_pos[0])
+        # print(c_pos[0])
+        # print(o_toks[0].tag_, o_toks[0])
+        # print(c_toks[0].tag_, c_toks[0])
+        # print(o_morph, o_dep)
+        # print(c_morph, c_dep)
         if o_toks[0].lemma == c_toks[0].lemma and \
                 o_pos[0] in open_pos2 and \
                 c_pos[0] in open_pos2:

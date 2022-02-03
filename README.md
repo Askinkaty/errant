@@ -1,5 +1,32 @@
 # ERRANT v2.3.0
 
+## This repository contains an extended version of ERRANT which works for the Russian language as well.
+To make it work, update your installations. Errant should be installed from the source:
+
+```
+# git clone https://github.com/Askinkaty/errant.git
+# cd errant
+# python3 -m venv errant_env
+# source errant_env/bin/activate
+# pip3 install -U pip setuptools wheel
+# pip3 install -e .
+# pip3 install spacy==3.1.0
+# python3 -m spacy download ru_core_news_lg
+#
+```
+
+To start using RuERRANT load Russian, all other steps are the same.
+
+```
+import errant
+
+annotator = errant.load('ru')
+```
+
+
+___
+
+
 This repository contains the grammatical ERRor ANnotation Toolkit (ERRANT) described in:
 
 > Christopher Bryant, Mariano Felice, and Ted Briscoe. 2017. [**Automatic annotation and evaluation of error types for grammatical error correction**](https://www.aclweb.org/anthology/P17-1074/). In Proceedings of the 55th Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers). Vancouver, Canada.
